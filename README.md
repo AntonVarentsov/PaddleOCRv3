@@ -2,12 +2,21 @@
 
 This project provides a Dockerized REST API service for PaddleOCR-VL (v3.2.0), supporting OCR and layout analysis (tables, blocks) with GPU acceleration.
 
+## Current Layout (matches running vast.ai server)
+
+- `/api/main.py` — FastAPI app (same code as production).
+- `requirements.txt` — pinned to the exact versions running on the server (FastAPI 0.123.5, uvicorn 0.38.0, PaddleOCR 3.3.2, paddlepaddle-gpu 3.2.0, etc.).
+- `onstart.sh` — startup script used on the server: `nohup uvicorn api.main:app --host 0.0.0.0 --port 8000 > /var/log/api.log 2>&1 &`.
+- `scripts/test_gpu.py` — simple CUDA/PaddleOCR-VL check.
+
+See `docs/server-environment.md` for the full `pip freeze` captured from the running machine.
+
 ## Requirements
 
 - **NVIDIA GPU** with Compute Capability >= 7.0 (e.g., T4, RTX 20xx/30xx/40xx, A100).
 - **NVIDIA Drivers**: Compatible with CUDA 11.8 (Driver version >= 450.80.02 for Linux).
-- **Docker** >= 19.03.
-- **NVIDIA Container Toolkit**: Installed and configured to allow Docker to access GPUs.
+- **CUDA 11.8 + cuDNN 8.9** (server uses paddlepaddle-gpu 3.2.0 built for CUDA 11.8).
+- **Python 3.10+** recommended.
 
 ## Setup & Deployment
 
@@ -17,16 +26,23 @@ This project provides a Dockerized REST API service for PaddleOCR-VL (v3.2.0), s
     cd <repo_name>
     ```
 
-2.  **Start the service**:
+2.  **Install dependencies (matches production versions)**:
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+3.  **Start the service (local)**:
+    ```bash
+    uvicorn ocr_with_tables:app --host 0.0.0.0 --port 8000
+    ```
+    - UI доступно на `http://localhost:8000/`
+    - API эндпоинт: `POST /parse` с `file` (PDF/PNG/JPG), `detect_tables` (bool), `max_dim` (int, default 4000)
+
+4.  *(Optional)* **Run via Docker**:
     ```bash
     docker compose up -d
     ```
-    *Note: The first run will download the Docker image and PaddleOCR models (approx. several GBs). Models are persisted in the `models/` directory.*
-
-3.  **Check logs**:
-    ```bash
-    docker compose logs -f
-    ```
+    После старта UI будет на `http://localhost:8000/`. *Note: Первая сборка загрузит модели (несколько ГБ); данные кэшируются.*
 
 ## Usage
 

@@ -7,21 +7,23 @@ RUN apt-get update && apt-get install -y \
     libsm6 \
     libxext6 \
     libxrender-dev \
+    poppler-utils \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
 WORKDIR /app
 
-# Copy and install Python dependencies
-COPY api/requirements.txt .
+# Copy and install Python dependencies (pinned to production versions)
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY api/ api/
 COPY scripts/ scripts/
+COPY ocr_with_tables.py .
 
 # Expose port
 EXPOSE 8000
 
 # Entrypoint
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "ocr_with_tables:app", "--host", "0.0.0.0", "--port", "8000"]
