@@ -1,6 +1,6 @@
 # PaddleOCR-VL API Service
 
-This project provides a Dockerized REST API service for PaddleOCR-VL (v3.x), supporting OCR and layout analysis (tables, blocks) with GPU acceleration.
+This project provides a Dockerized REST API service for PaddleOCR-VL (v3.2.0), supporting OCR and layout analysis (tables, blocks) with GPU acceleration.
 
 ## Requirements
 
