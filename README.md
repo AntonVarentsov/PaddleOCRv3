@@ -94,3 +94,52 @@ Output should confirm:
 
 - **Port**: Default is `8000`. Change in `docker-compose.yml`.
 - **GPU**: Default uses `device_ids: ["0"]`. Update `docker-compose.yml` for multiple GPUs.
+
+## Publishing Docker Images
+
+### Option 1: GitHub Container Registry (GHCR) - Automatic via CI/CD
+
+The repository includes a GitHub Actions workflow that automatically builds and publishes images to GHCR.
+
+**Setup:**
+1. Push code to the `main` branch or create a version tag (e.g., `v1.0.0`).
+2. GitHub Actions will automatically build and push the image.
+3. After the first build, go to your GitHub profile → Packages → `paddleocrv3` → Package settings → Change visibility to **Public** (if desired).
+
+**Using the published image:**
+```bash
+docker pull ghcr.io/<your-username>/paddleocrv3:latest
+```
+
+**Available tags:**
+- `latest` - Latest build from main branch
+- `v1.0.0` - Specific version tag
+- `<commit-sha>` - Specific commit
+
+### Option 2: Docker Hub - Manual Publishing
+
+To build and push the image to Docker Hub manually:
+
+1.  **Login to Docker Hub**:
+    ```bash
+    docker login
+    ```
+
+2.  **Build the image**:
+    Replace `your_username` with your Docker Hub username.
+    ```bash
+    docker build -t your_username/paddleocr-vl-service:latest .
+    ```
+
+3.  **Push the image**:
+    ```bash
+    docker push your_username/paddleocr-vl-service:latest
+    ```
+
+### Local Testing Before Publishing
+
+Test the image locally before publishing:
+```bash
+docker build -t paddleocrv3:local .
+docker run --rm -p 8000:8000 paddleocrv3:local
+```
