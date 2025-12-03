@@ -20,10 +20,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY api/ api/
 COPY scripts/ scripts/
-COPY ocr_with_tables.py .
 
 # Expose port
 EXPOSE 8000
 
 # Entrypoint
-CMD ["uvicorn", "ocr_with_tables:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "api.ocr_with_tables:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -33,7 +33,7 @@ See `docs/server-environment.md` for the full `pip freeze` captured from the run
 
 3.  **Start the service (local)**:
     ```bash
-    uvicorn ocr_with_tables:app --host 0.0.0.0 --port 8000
+    uvicorn api.ocr_with_tables:app --host 0.0.0.0 --port 8000
     ```
     - UI доступно на `http://localhost:8000/`
     - API эндпоинт: `POST /parse` с `file` (PDF/PNG/JPG), `detect_tables` (bool), `max_dim` (int, default 4000)
