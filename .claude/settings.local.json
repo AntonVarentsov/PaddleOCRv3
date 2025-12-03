@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(scp:*)",
+      "Bash(ssh:*)",
+      "Bash(python -m json.tool:*)",
+      "Bash(cat:*)",
+      "Bash(python -c:*)",
+      "Bash(python detect_tables_heuristic.py:*)",
+      "Bash(python extract_table_to_csv.py:*)",
+      "Bash(python extract_pump_tables.py:*)",
+      "Bash(python extract_all_tables.py:*)",
+      "Bash(python extract_table_improved.py:*)",
+      "Bash(python extract_structured_table.py:*)",
+      "Bash(python extract_table_smart.py:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
