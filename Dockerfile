@@ -1,28 +1,23 @@
 FROM paddlepaddle/paddle:3.0.0b2-gpu-cuda11.8-cudnn8.6-trt8.5
 
-# Install system dependencies for OpenCV and others
+# Install system dependencies and clean up in one layer
 RUN apt-get update && apt-get install -y \
     libgl1-mesa-glx \
     libgomp1 \
     libsm6 \
     libxext6 \
     libxrender-dev \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
 WORKDIR /app
 
-# Copy requirements first to leverage cache
+# Copy and install Python dependencies
 COPY api/requirements.txt .
-
-# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application
+# Copy application code
 COPY api/ api/
-# We will copy scripts if they exist, but for now let's assume we copy everything in context if needed
-# Or just copy scripts explicitly. 
-# To avoid error if scripts dir doesn't exist yet (though I will create it), 
-# I'll add it.
 COPY scripts/ scripts/
 
 # Expose port
