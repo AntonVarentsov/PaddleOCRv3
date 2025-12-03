@@ -1,4 +1,4 @@
-FROM paddlepaddle/paddle:3.0.0b2-gpu-cuda11.8-cudnn8.6-trt8.5
+FROM paddlepaddle/paddle:3.2.0-gpu-cuda11.8-cudnn8.9
 
 # Install system dependencies and clean up in one layer
 RUN apt-get update && apt-get install -y \
