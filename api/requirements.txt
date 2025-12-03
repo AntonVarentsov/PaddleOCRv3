@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+python-multipart
+paddlepaddle-gpu==3.0.0b1
+paddleocr==2.9.1
+opencv-python-headless
+pillow

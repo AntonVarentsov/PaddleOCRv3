@@ -1,0 +1,19 @@
+services:
+  ocr-service:
+    build: .
+    image: paddleocr-vl-service
+    container_name: paddleocr-vl-container
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./models:/root/.paddleocr # Persist downloaded models
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+    restart: unless-stopped
