@@ -2,13 +2,14 @@ import os
 import shutil
 import tempfile
 import json
+import time
 from pathlib import Path
 from typing import List, Dict
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, Query
 from fastapi.responses import JSONResponse, HTMLResponse
-from paddleocr import PaddleOCR, TableRecognitionPipelineV2
-from PIL import Image
+from paddleocr import PaddleOCR
+from PIL import Image, ImageOps
 from pdf2image import convert_from_path
 from collections import defaultdict
 
@@ -136,7 +137,7 @@ def detect_tables_heuristic(blocks: List[Dict], img_width: int, img_height: int,
     return table_regions
 
 
-def convert_pdf_to_images(pdf_path: str, max_dim: int = 4000, dpi: int = 200) -> List[str]:
+def convert_pdf_to_images(pdf_path: str, max_dim: int = 10000, dpi: int = 300) -> List[str]:
     """
     Convert a PDF into resized PNG images stored in temp files.
     Ensures the longest side of each page is below max_dim to reduce GPU memory use.
@@ -162,39 +163,71 @@ def convert_pdf_to_images(pdf_path: str, max_dim: int = 4000, dpi: int = 200) ->
 
 print("Initializing PaddleOCR...")
 try:
-    ocr = PaddleOCR(use_textline_orientation=True, lang="en")
+    ocr = PaddleOCR(
+        use_textline_orientation=False,  # keep only core det+rec to speed up
+        lang="en",
+        rec_batch_num=16,
+        det_limit_side_len=10000,
+        det_limit_type="max"
+    )
     print("PaddleOCR initialized!")
+    # Warm up once so models are fully loaded in memory before first request
+    tmp_path = None
+    try:
+        print("Running OCR warmup...")
+        warmup_img = Image.new("RGB", (128, 128), color="white")
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
+        tmp_path = tmp.name
+        warmup_img.save(tmp_path, format="PNG")
+        ocr.predict(input=tmp_path)
+        print("OCR warmup completed.")
+    except Exception as warmup_err:
+        print(f"OCR warmup failed: {warmup_err}")
+    finally:
+        try:
+            if tmp_path and os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        except Exception:
+            pass
 except Exception as e:
     print(f"OCR Error: {e}")
     import traceback; traceback.print_exc()
     ocr = None
 
-print("Initializing TableRecognitionPipelineV2...")
-try:
-    table_pipeline = TableRecognitionPipelineV2(
-        use_layout_detection=True,
-        use_ocr_model=True
-    )
-    print("Table pipeline initialized!")
-except Exception as e:
-    print(f"Table Error: {e}")
-    import traceback; traceback.print_exc()
-    table_pipeline = None
+# Table layout pipeline disabled to reduce GPU memory use
+table_pipeline = None
 
 @app.get("/health")
 async def health():
     return {
         "status": "healthy" if ocr else "unhealthy",
         "ocr": ocr is not None,
-        "tables": table_pipeline is not None
+        "tables": False
     }
 
 def process_image_file(image_path: str, detect_tables: bool, page_offset: int = 1) -> List[Dict]:
     """Run OCR + optional table detection on a single image file."""
-    with Image.open(image_path) as img:
-        img_width, img_height = img.size
+    PAD = 50
+    padded_path = None
 
-    result = ocr.predict(input=image_path)
+    # Pad image on all sides to avoid clipping on edges (and handle rotations)
+    with Image.open(image_path) as img:
+        orig_w, orig_h = img.size
+        padded_img = ImageOps.expand(img, border=PAD, fill="white")
+        padded_path = tempfile.NamedTemporaryFile(delete=False, suffix=".png").name
+        padded_img.save(padded_path, format="PNG")
+        pad_w, pad_h = padded_img.size
+
+    try:
+        page_start = time.perf_counter()
+        result = ocr.predict(input=padded_path)
+        print(f"OCR page done in {time.perf_counter() - page_start:.2f}s")
+    finally:
+        if padded_path and os.path.exists(padded_path):
+            try:
+                os.remove(padded_path)
+            except Exception:
+                pass
 
     pages = []
     for page_idx, page_result in enumerate(result, start=page_offset):
@@ -222,9 +255,11 @@ def process_image_file(image_path: str, detect_tables: bool, page_offset: int = 
 
                 normalized_vertices = []
                 for point in poly:
+                    adj_x = max(0.0, min(orig_w, point[0] - PAD))
+                    adj_y = max(0.0, min(orig_h, point[1] - PAD))
                     normalized_vertices.append({
-                        "x": point[0] / img_width,
-                        "y": point[1] / img_height
+                        "x": adj_x / orig_w if orig_w else 0.0,
+                        "y": adj_y / orig_h if orig_h else 0.0
                     })
 
                 blocks.append({
@@ -239,75 +274,14 @@ def process_image_file(image_path: str, detect_tables: bool, page_offset: int = 
 
             page_data = {
                 "page": page_idx,
-                "width": img_width,
-                "height": img_height,
+                "width": orig_w,
+                "height": orig_h,
                 "blocks": blocks
             }
 
-            if detect_tables and table_pipeline:
-                try:
-                    print(f"Detecting layout on page {page_idx}...")
-                    table_result = table_pipeline.predict(input=image_path)
-
-                    layout_elements = []
-                    for res_idx, table_res in enumerate(table_result):
-                        with tempfile.TemporaryDirectory() as td2:
-                            table_res.save_to_json(td2)
-                            json_files = [f for f in os.listdir(td2) if f.endswith(".json")]
-
-                            if json_files:
-                                with open(os.path.join(td2, json_files[0]), 'r', encoding='utf-8') as f:
-                                    layout_data = json.load(f)
-
-                                    if 'layout_det_res' in layout_data:
-                                        det_res = layout_data['layout_det_res']
-                                        boxes = det_res.get('boxes', [])
-
-                                        for box_idx, box in enumerate(boxes):
-                                            label = box.get('label', 'unknown')
-                                            score = float(box.get('score', 0.0))
-
-                                            bbox = box.get('bbox') or box.get('coordinate')
-                                            poly = box.get('poly')
-
-                                            if bbox is None and poly:
-                                                xs = [p[0] for p in poly]
-                                                ys = [p[1] for p in poly]
-                                                bbox = [min(xs), min(ys), max(xs), max(ys)]
-
-                                            if bbox:
-                                                element = {
-                                                    "id": f"layout-{page_idx}-{res_idx + 1}-{box_idx + 1}",
-                                                    "type": label,
-                                                    "confidence": score,
-                                                    "boundingPoly": {
-                                                        "normalizedVertices": [
-                                                            {"x": bbox[0] / img_width, "y": bbox[1] / img_height},
-                                                            {"x": bbox[2] / img_width, "y": bbox[1] / img_height},
-                                                            {"x": bbox[2] / img_width, "y": bbox[3] / img_height},
-                                                            {"x": bbox[0] / img_width, "y": bbox[3] / img_height}
-                                                        ]
-                                                    }
-                                                }
-                                                layout_elements.append(element)
-
-                                    if 'table_res_list' in layout_data:
-                                        tables_list = layout_data['table_res_list']
-                                        if tables_list:
-                                            page_data['tableData'] = tables_list
-
-                    if layout_elements:
-                        page_data['layout'] = layout_elements
-                        from collections import Counter
-                        type_counts = Counter(e['type'] for e in layout_elements)
-                        print(f"Found {len(layout_elements)} layout elements: {dict(type_counts)}")
-                except Exception as e:
-                    print(f"Layout detection error: {e}")
-                    import traceback; traceback.print_exc()
-
             if detect_tables:
                 try:
-                    heuristic_tables = detect_tables_heuristic(blocks, img_width, img_height)
+                    heuristic_tables = detect_tables_heuristic(blocks, orig_w, orig_h)
                     if heuristic_tables:
                         page_data.setdefault('tables', []).extend(heuristic_tables)
                         print(f"Heuristic found {len(heuristic_tables)} table(s)")
@@ -355,7 +329,11 @@ async def ui():
         </div>
         <div>
           <label for="max_dim">Max side (px)</label><br/>
-          <input id="max_dim" name="max_dim" type="number" value="4000" min="256" max="6000" />
+          <input id="max_dim" name="max_dim" type="number" value="10000" min="256" max="12000" />
+        </div>
+        <div>
+          <label for="dpi">DPI (PDF)</label><br/>
+          <input id="dpi" name="dpi" type="number" value="300" min="72" max="600" />
         </div>
         <div style="display:flex;align-items:center;gap:6px;margin-top:22px;">
           <input id="detect_tables" type="checkbox" name="detect_tables" />
@@ -383,25 +361,28 @@ async def ui():
         statusEl.textContent = "Please choose a file.";
         return;
       }
-      const maxDim = document.getElementById("max_dim").value || "4000";
+      const maxDim = document.getElementById("max_dim").value || "10000";
+      const dpi = document.getElementById("dpi").value || "300";
       const detectTables = document.getElementById("detect_tables").checked ? "true" : "false";
 
       const data = new FormData();
       data.append("file", fileInput.files[0]);
 
-      const url = `/parse?detect_tables=${detectTables}&max_dim=${encodeURIComponent(maxDim)}`;
+      const url = `/parse?detect_tables=${detectTables}&max_dim=${encodeURIComponent(maxDim)}&dpi=${encodeURIComponent(dpi)}`;
 
       statusEl.textContent = "Processing...";
       submitBtn.disabled = true;
       output.value = "";
 
       try {
+        const started = performance.now();
         const res = await fetch(url, { method: "POST", body: data });
         const text = await res.text();
         try {
           const json = JSON.parse(text);
           output.value = JSON.stringify(json, null, 2);
-          statusEl.textContent = res.ok ? "Done" : `Error (${res.status})`;
+          const duration = (json.time_sec ?? ((performance.now() - started) / 1000)).toFixed(2);
+          statusEl.textContent = res.ok ? `Done in ${duration}s` : `Error (${res.status})`;
         } catch {
           output.value = text;
           statusEl.textContent = res.ok ? "Done (non-JSON response)" : `Error (${res.status})`;
@@ -422,11 +403,13 @@ async def ui():
 async def parse(
     file: UploadFile = File(...),
     detect_tables: bool = Query(False),
-    max_dim: int = Query(4000, description="Max image side (px) after PDF conversion")
+    max_dim: int = Query(10000, description="Max image side (px) after PDF conversion"),
+    dpi: int = Query(300, description="DPI for PDF to image conversion")
 ):
     if not ocr:
         raise HTTPException(503, "OCR unavailable")
 
+    start_time = time.perf_counter()
     with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename).suffix) as tmp:
         shutil.copyfileobj(file.file, tmp)
         tmp_path = tmp.name
@@ -439,8 +422,8 @@ async def parse(
         inputs = [tmp_path]
 
         if is_pdf:
-            print(f"Converting PDF to images: {tmp_path}, max_dim={max_dim}")
-            converted_images = convert_pdf_to_images(tmp_path, max_dim=max_dim)
+            print(f"Converting PDF to images: {tmp_path}, max_dim={max_dim}, dpi={dpi}")
+            converted_images = convert_pdf_to_images(tmp_path, max_dim=max_dim, dpi=dpi)
             inputs = converted_images
 
         page_counter = 1
@@ -450,7 +433,8 @@ async def parse(
             all_pages.extend(pages)
             page_counter += len(pages)
 
-        return JSONResponse(content={"pages": all_pages})
+        duration = time.perf_counter() - start_time
+        return JSONResponse(content={"pages": all_pages, "time_sec": round(duration, 3)})
 
     except HTTPException:
         raise
