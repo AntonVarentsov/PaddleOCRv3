@@ -178,7 +178,7 @@ try:
     try:
         print("Running OCR warmup...")
         warmup_img = Image.new("RGB", (128, 128), color="white")
-        fd, tmp_path = tempfile.mkstemp(delete=False, suffix=".png")
+        fd, tmp_path = tempfile.mkstemp(suffix=".png")
         os.close(fd)  # close immediately so Pillow can write on Windows
         warmup_img.save(tmp_path, format="PNG")
         ocr.predict(input=tmp_path)
