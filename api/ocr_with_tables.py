@@ -215,8 +215,8 @@ def process_image_file(image_path: str, detect_tables: bool, page_offset: int = 
     # Pad image on all sides to avoid clipping on edges (and handle rotations)
     with Image.open(image_path) as img:
         orig_w, orig_h = img.size
-        # Dynamic padding: scale with image size, but keep sane bounds
-        PAD = max(40, min(150, int(max(orig_w, orig_h) * 0.02)))
+        # Stronger dynamic padding to preserve left/top content on small renders
+        PAD = max(100, min(240, int(max(orig_w, orig_h) * 0.04)))
         padded_img = ImageOps.expand(img, border=PAD, fill="white")
         padded_path = tempfile.NamedTemporaryFile(delete=False, suffix=".png").name
         padded_img.save(padded_path, format="PNG")
