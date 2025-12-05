@@ -139,7 +139,7 @@ def detect_tables_heuristic(blocks: List[Dict], img_width: int, img_height: int,
     return table_regions
 
 
-def convert_pdf_to_images(pdf_path: str, max_dim: int = 10000, dpi: int = 300) -> List[str]:
+def convert_pdf_to_images(pdf_path: str, max_dim: int = 6000, dpi: int = 250) -> List[str]:
     """
     Convert a PDF into resized PNG images stored in temp files.
     Ensures the longest side of each page is below max_dim to reduce GPU memory use.
@@ -339,11 +339,11 @@ async def ui():
         </div>
         <div>
           <label for="max_dim">Max side (px)</label><br/>
-          <input id="max_dim" name="max_dim" type="number" value="10000" min="256" max="12000" />
+          <input id="max_dim" name="max_dim" type="number" value="6000" min="256" max="12000" />
         </div>
         <div>
           <label for="dpi">DPI (PDF)</label><br/>
-          <input id="dpi" name="dpi" type="number" value="300" min="72" max="600" />
+          <input id="dpi" name="dpi" type="number" value="250" min="72" max="600" />
         </div>
         <div style="display:flex;align-items:center;gap:6px;margin-top:22px;">
           <input id="detect_tables" type="checkbox" name="detect_tables" />
@@ -371,8 +371,8 @@ async def ui():
         statusEl.textContent = "Please choose a file.";
         return;
       }
-      const maxDim = document.getElementById("max_dim").value || "10000";
-      const dpi = document.getElementById("dpi").value || "300";
+      const maxDim = document.getElementById("max_dim").value || "6000";
+      const dpi = document.getElementById("dpi").value || "250";
       const detectTables = document.getElementById("detect_tables").checked ? "true" : "false";
 
       const data = new FormData();
@@ -413,8 +413,8 @@ async def ui():
 async def parse(
     file: UploadFile = File(...),
     detect_tables: bool = Query(False),
-    max_dim: int = Query(10000, description="Max image side (px) after PDF conversion"),
-    dpi: int = Query(300, description="DPI for PDF to image conversion")
+    max_dim: int = Query(6000, description="Max image side (px) after PDF conversion"),
+    dpi: int = Query(250, description="DPI for PDF to image conversion")
 ):
     if not ocr:
         raise HTTPException(503, "OCR unavailable")
