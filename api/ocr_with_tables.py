@@ -165,13 +165,18 @@ def convert_pdf_to_images(pdf_path: str, max_dim: int = 6000, dpi: int = 250) ->
 
 print("Initializing PaddleOCR...")
 try:
-    ocr = PaddleOCR(
+    trt_enabled = os.getenv("USE_TENSORRT", "0") == "1"
+    ocr_kwargs = dict(
         use_textline_orientation=False,  # keep only core det+rec to speed up
         lang="en",
         rec_batch_num=4,  # lower batch to avoid GPU OOM spikes
         det_limit_side_len=10000,
-        det_limit_type="max"
+        det_limit_type="max",
     )
+    if trt_enabled:
+        ocr_kwargs.update(use_tensorrt=True)
+
+    ocr = PaddleOCR(**ocr_kwargs)
     print("PaddleOCR initialized!")
     # Warm up once so models are fully loaded in memory before first request
     tmp_path = None
