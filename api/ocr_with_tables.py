@@ -166,7 +166,7 @@ try:
     ocr = PaddleOCR(
         use_textline_orientation=False,  # keep only core det+rec to speed up
         lang="en",
-        rec_batch_num=16,
+        rec_batch_num=8,
         det_limit_side_len=10000,
         det_limit_type="max"
     )
