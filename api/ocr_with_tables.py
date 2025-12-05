@@ -209,12 +209,14 @@ async def health():
 
 def process_image_file(image_path: str, detect_tables: bool, page_offset: int = 1) -> List[Dict]:
     """Run OCR + optional table detection on a single image file."""
-    PAD = 50
+    PAD = None
     padded_path = None
 
     # Pad image on all sides to avoid clipping on edges (and handle rotations)
     with Image.open(image_path) as img:
         orig_w, orig_h = img.size
+        # Dynamic padding: scale with image size, but keep sane bounds
+        PAD = max(40, min(150, int(max(orig_w, orig_h) * 0.02)))
         padded_img = ImageOps.expand(img, border=PAD, fill="white")
         padded_path = tempfile.NamedTemporaryFile(delete=False, suffix=".png").name
         padded_img.save(padded_path, format="PNG")
