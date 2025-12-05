@@ -168,7 +168,7 @@ try:
     ocr = PaddleOCR(
         use_textline_orientation=False,  # keep only core det+rec to speed up
         lang="en",
-        rec_batch_num=8,
+        rec_batch_num=4,  # lower batch to avoid GPU OOM spikes
         det_limit_side_len=10000,
         det_limit_type="max"
     )
@@ -232,6 +232,7 @@ def process_image_file(image_path: str, detect_tables: bool, page_offset: int = 
                 pass
         # Release GPU cache between pages
         try:
+            paddle.device.cuda.synchronize()
             paddle.device.cuda.empty_cache()
         except Exception:
             pass
@@ -458,6 +459,7 @@ async def parse(
         # Force garbage collection and clear CUDA cache after each request
         try:
             gc.collect()
+            paddle.device.cuda.synchronize()
             paddle.device.cuda.empty_cache()
         except Exception:
             pass
