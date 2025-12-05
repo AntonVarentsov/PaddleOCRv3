@@ -3,6 +3,7 @@ import shutil
 import tempfile
 import json
 import time
+import gc
 from pathlib import Path
 from typing import List, Dict
 
@@ -12,6 +13,7 @@ from paddleocr import PaddleOCR
 from PIL import Image, ImageOps
 from pdf2image import convert_from_path
 from collections import defaultdict
+import paddle
 
 app = FastAPI(title="PaddleOCR with Tables Service")
 
@@ -228,6 +230,11 @@ def process_image_file(image_path: str, detect_tables: bool, page_offset: int = 
                 os.remove(padded_path)
             except Exception:
                 pass
+        # Release GPU cache between pages
+        try:
+            paddle.device.cuda.empty_cache()
+        except Exception:
+            pass
 
     pages = []
     for page_idx, page_result in enumerate(result, start=page_offset):
@@ -448,6 +455,12 @@ async def parse(
                     os.remove(path)
                 except Exception:
                     pass
+        # Force garbage collection and clear CUDA cache after each request
+        try:
+            gc.collect()
+            paddle.device.cuda.empty_cache()
+        except Exception:
+            pass
 
 if __name__ == "__main__":
     import uvicorn
