@@ -174,7 +174,7 @@ try:
         det_limit_type="max",
     )
     if trt_enabled:
-        ocr_kwargs.update(use_tensorrt=True)
+        ocr_kwargs.update(use_tensorrt=True, precision="fp16")
 
     ocr = PaddleOCR(**ocr_kwargs)
     print("PaddleOCR initialized!")
