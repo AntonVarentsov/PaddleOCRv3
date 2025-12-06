@@ -13,10 +13,10 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# Install TensorRT runtime/dev libraries (Ubuntu 20.04 repo for CUDA 11.8)
-RUN wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-keyring_1.1-1_all.deb && \
-    dpkg -i cuda-keyring_1.1-1_all.deb && \
-    rm cuda-keyring_1.1-1_all.deb && \
+# Install TensorRT runtime/dev libraries (Ubuntu 20.04 ML repo for CUDA 11.x)
+RUN wget https://developer.download.nvidia.com/compute/machine-learning/repos/ubuntu2004/x86_64/nvidia-machine-learning-repo-ubuntu2004_1.0.0-1_amd64.deb && \
+    dpkg -i nvidia-machine-learning-repo-ubuntu2004_1.0.0-1_amd64.deb && \
+    rm nvidia-machine-learning-repo-ubuntu2004_1.0.0-1_amd64.deb && \
     apt-get update && apt-get install -y --no-install-recommends \
     libnvinfer8 \
     libnvinfer-plugin8 \
